@@ -138,3 +138,56 @@ exports.getWordDetails = functions.https.onCall(async (data, context) => {
     )
   }
 })
+
+exports.getUserWordsWithOriginalWords = functions.https.onCall(
+  async (data, context) => {
+    // Check if the user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "User must be authenticated to fetch user words."
+      )
+    }
+
+    const userID = context.auth.uid
+
+    try {
+      const userWordsSnapshot = await db
+        .collection("UserWord")
+        .where("userId", "==", userID)
+        .get()
+
+      const userWords = []
+      const wordIds = []
+
+      userWordsSnapshot.forEach((doc) => {
+        const userWord = doc.data()
+        userWords.push({ id: doc.id, ...userWord })
+        wordIds.push(userWord.wordId)
+      })
+
+      const wordSnapshots = await db
+        .collection("Word")
+        .where(admin.firestore.FieldPath.documentId(), "in", wordIds)
+        .get()
+
+      const wordsMap = {}
+      wordSnapshots.forEach((doc) => {
+        wordsMap[doc.id] = { id: doc.id, ...doc.data() }
+      })
+
+      const userWordsWithOriginalWords = userWords.map((userWord) => {
+        const word = wordsMap[userWord.wordId]
+        return { ...userWord, word }
+      })
+
+      return userWordsWithOriginalWords
+    } catch (error) {
+      console.error(error)
+      throw new functions.https.HttpsError(
+        "internal",
+        "Error fetching user words"
+      )
+    }
+  }
+)
