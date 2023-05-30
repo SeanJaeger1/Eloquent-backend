@@ -42,47 +42,71 @@ exports.getUserWords = functions.https.onCall(async (data, context) => {
   }
 })
 
-// get a new word for the user to learn
-// exports.getNewWords = functions.https.onCall(async (data, context) => {
-//   // Check if the user is authenticated
-//   if (!context.auth) {
-//     throw new functions.https.HttpsError(
-//       "unauthenticated",
-//       "User must be authenticated to fetch new words."
-//     )
-//   }
+// get a mix of old and new words for the user to learn
+exports.getLearningWords = functions.https.onCall(async (data, context) => {
+  // Check if the user is authenticated
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be authenticated to fetch learning words."
+    )
+  }
 
-//   const userID = context.auth.uid
+  const userID = context.auth.uid
 
-//   try {
-//     const userWordsSnapshot = await db
-//       .collection("UserWord")
-//       .where("userId", "==", userID)
-//       .get()
+  try {
+    // Get old words
+    const oneHourAgo = admin.firestore.Timestamp.fromDate(
+      new Date(Date.now() - 1000 * 60 * 60)
+    ) // 1 hour ago
+    const oldWordsQuery = db
+      .collection("UserWord")
+      .where("userId", "==", userID)
+      .where("lastSeenAt", "<", oneHourAgo)
+      .orderBy("lastSeenAt", "desc")
+      .limit(15)
+    const oldWordsSnapshot = await oldWordsQuery.get()
+    const oldWords = oldWordsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }))
 
-//     const userWordIds = userWordsSnapshot.docs.map((doc) => doc.data().wordID)
+    let newWords = []
+    if (oldWords.length < 15) {
+      const newWordsNeeded = 15 - oldWords.length
 
-//     let wordsQuery = db.collection("Word").limit(10)
-//     if (userWordIds.length > 0) {
-//       wordsQuery = wordsQuery.where(
-//         admin.firestore.FieldPath.documentId(),
-//         "not-in",
-//         userWordIds
-//       )
-//     }
-//     const wordsSnapshot = await wordsQuery.get()
+      // const userSkillLevel = userDocSnapshot.data().skillLevel
+      const newWordsQuery = db
+        .collection("Word")
+        .where("difficulty", "==", "intermediate")
+        .limit(newWordsNeeded)
+      const newWordsSnapshot = await newWordsQuery.get()
+      newWords = newWordsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+    }
 
-//     const newWords = []
-//     wordsSnapshot.forEach((doc) => {
-//       newWords.push({ id: doc.id, ...doc.data() })
-//     })
+    // Combine old and new words
+    const wordsToShow = [...oldWords, ...newWords].slice(0, 15).map((word) => {
+      // Handle NaN values in word properties
+      for (const key in word) {
+        if (typeof word[key] === "number" && isNaN(word[key])) {
+          word[key] = null
+        }
+      }
+      return word
+    })
 
-//     return newWords
-//   } catch (error) {
-//     console.error(error)
-//     throw new functions.https.HttpsError("internal", "Error fetching new words")
-//   }
-// })
+    return wordsToShow
+  } catch (error) {
+    console.error(error)
+    throw new functions.https.HttpsError(
+      "internal",
+      "Error fetching learning words"
+    )
+  }
+})
 
 // Get word details via a word's ID
 exports.getWordDetails = functions.https.onCall(async (data, context) => {
