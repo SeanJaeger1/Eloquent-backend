@@ -10,38 +10,6 @@ admin.initializeApp({
 
 const db = admin.firestore()
 
-exports.getUserWords = functions.https.onCall(async (data, context) => {
-  // Check if the user is authenticated
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      "unauthenticated",
-      "User must be authenticated to fetch user words."
-    )
-  }
-
-  const userID = context.auth.uid
-
-  try {
-    const userWordsSnapshot = await db
-      .collection("UserWord")
-      .where("userId", "==", userID)
-      .get()
-
-    const userWords = []
-    userWordsSnapshot.forEach((doc) => {
-      userWords.push({ id: doc.id, ...doc.data() })
-    })
-
-    return userWords
-  } catch (error) {
-    console.error(error)
-    throw new functions.https.HttpsError(
-      "internal",
-      "Error fetching user words"
-    )
-  }
-})
-
 // get a mix of old and new words for the user to learn
 exports.getLearningWords = functions.https.onCall(async (data, context) => {
   // Check if the user is authenticated
@@ -108,86 +76,108 @@ exports.getLearningWords = functions.https.onCall(async (data, context) => {
   }
 })
 
-// Get word details via a word's ID
-exports.getWordDetails = functions.https.onCall(async (data, context) => {
-  const { wordID } = data
-
-  if (!wordID) {
+exports.getUserWords = functions.https.onCall(async (data, context) => {
+  // Check if the user is authenticated
+  if (!context.auth) {
     throw new functions.https.HttpsError(
-      "invalid-argument",
-      "Word ID is required."
+      "unauthenticated",
+      "User must be authenticated to fetch user words."
     )
   }
 
+  const userID = context.auth.uid
+
   try {
-    const wordDoc = await db.collection("Words").doc(wordID).get()
+    const userWordsSnapshot = await db
+      .collection("UserWord")
+      .where("userId", "==", userID)
+      .get()
 
-    if (!wordDoc.exists) {
-      throw new functions.https.HttpsError(
-        "not-found",
-        "The requested word was not found."
-      )
-    }
+    const userWords = userWordsSnapshot.docs.map((doc) => {
+      const data = doc.data()
 
-    return { id: wordDoc.id, ...wordDoc.data() }
+      // Recursively replace NaN with '' in the document data
+      ;(function replaceNaN(obj) {
+        Object.keys(obj).forEach((key) => {
+          if (typeof obj[key] === "object" && obj[key] !== null) {
+            return replaceNaN(obj[key])
+          }
+          if (typeof obj[key] === "number" && isNaN(obj[key])) {
+            obj[key] = ""
+          }
+        })
+      })(data)
+
+      return data
+    })
+
+    return userWords
   } catch (error) {
     console.error(error)
     throw new functions.https.HttpsError(
       "internal",
-      "Error fetching word details"
+      "Error fetching user words"
     )
   }
 })
 
-exports.getUserWordsWithOriginalWords = functions.https.onCall(
-  async (data, context) => {
-    // Check if the user is authenticated
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "User must be authenticated to fetch user words."
-      )
-    }
-
-    const userID = context.auth.uid
-
-    try {
-      const userWordsSnapshot = await db
-        .collection("UserWord")
-        .where("userId", "==", userID)
-        .get()
-
-      const userWords = []
-      const wordIds = []
-
-      userWordsSnapshot.forEach((doc) => {
-        const userWord = doc.data()
-        userWords.push({ id: doc.id, ...userWord })
-        wordIds.push(userWord.wordId)
-      })
-
-      const wordSnapshots = await db
-        .collection("Word")
-        .where(admin.firestore.FieldPath.documentId(), "in", wordIds)
-        .get()
-
-      const wordsMap = {}
-      wordSnapshots.forEach((doc) => {
-        wordsMap[doc.id] = { id: doc.id, ...doc.data() }
-      })
-
-      const userWordsWithOriginalWords = userWords.map((userWord) => {
-        const word = wordsMap[userWord.wordId]
-        return { ...userWord, word }
-      })
-
-      return userWordsWithOriginalWords
-    } catch (error) {
-      console.error(error)
-      throw new functions.https.HttpsError(
-        "internal",
-        "Error fetching user words"
-      )
-    }
+exports.updateWordProgress = functions.https.onCall(async (data, context) => {
+  // Check if the user is authenticated
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User is not authenticated."
+    )
   }
-)
+
+  console.log("here", data)
+
+  const { userWordId, increment } = data
+  const userId = context.auth.uid
+
+  try {
+    const userWordRef = db.collection("UserWord").doc(userWordId)
+
+    // Check if the user word exists
+    const userWordSnapshot = await userWordRef.get()
+
+    if (userWordSnapshot.exists) {
+      // User word exists, update the progress
+      const userWordData = userWordSnapshot.data()
+      const progress = userWordData.progress || 0
+      const updatedProgress = Math.max(1, Math.min(progress + increment, 5))
+
+      await userWordRef.update({ progress: updatedProgress })
+
+      return {
+        success: true,
+        message: "User word progress updated successfully.",
+      }
+    } else {
+      // User word doesn't exist, create a new user word
+      const wordRef = db.collection("Word").doc(userWordId)
+      const wordSnapshot = await wordRef.get()
+
+      if (!wordSnapshot.exists) {
+        throw new functions.https.HttpsError("not-found", "Word not found.")
+      }
+
+      const wordData = wordSnapshot.data()
+      const newUserWord = {
+        word: wordData,
+        progress: Math.max(1, increment),
+        userId,
+      }
+
+      await userWordRef.set(newUserWord)
+
+      return { success: true, message: "User word created successfully." }
+    }
+  } catch (error) {
+    console.error("Error updating/creating user word:", error)
+    throw new functions.https.HttpsError(
+      "internal",
+      "An error occurred while updating/creating user word."
+    )
+  }
+})
