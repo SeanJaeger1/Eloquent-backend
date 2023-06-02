@@ -56,15 +56,7 @@ exports.getLearningWords = functions.https.onCall(async (data, context) => {
     }
 
     // Combine old and new words
-    const wordsToShow = [...oldWords, ...newWords].slice(0, 15).map((word) => {
-      // Handle NaN values in word properties
-      for (const key in word) {
-        if (typeof word[key] === "number" && isNaN(word[key])) {
-          word[key] = null
-        }
-      }
-      return word
-    })
+    const wordsToShow = [...oldWords, ...newWords].slice(0, 15)
 
     return wordsToShow
   } catch (error) {
@@ -94,21 +86,7 @@ exports.getUserWords = functions.https.onCall(async (data, context) => {
       .get()
 
     const userWords = userWordsSnapshot.docs.map((doc) => {
-      const data = doc.data()
-
-      // Recursively replace NaN with '' in the document data
-      ;(function replaceNaN(obj) {
-        Object.keys(obj).forEach((key) => {
-          if (typeof obj[key] === "object" && obj[key] !== null) {
-            return replaceNaN(obj[key])
-          }
-          if (typeof obj[key] === "number" && isNaN(obj[key])) {
-            obj[key] = ""
-          }
-        })
-      })(data)
-
-      return data
+      return doc.data()
     })
 
     return userWords
