@@ -130,8 +130,6 @@ exports.updateWordProgress = functions.https.onCall(async (data, context) => {
     )
   }
 
-  console.log("here", data)
-
   const { userWordId, increment } = data
   const userId = context.auth.uid
 
@@ -147,7 +145,10 @@ exports.updateWordProgress = functions.https.onCall(async (data, context) => {
       const progress = userWordData.progress || 0
       const updatedProgress = Math.max(1, Math.min(progress + increment, 5))
 
-      await userWordRef.update({ progress: updatedProgress })
+      await userWordRef.update({
+        progress: updatedProgress,
+        lastSeenAt: admin.firestore.FieldValue.serverTimestamp(), // update lastSeenAt to current server time
+      })
 
       return {
         success: true,
@@ -167,6 +168,7 @@ exports.updateWordProgress = functions.https.onCall(async (data, context) => {
         word: wordData,
         progress: Math.max(1, increment),
         userId,
+        lastSeenAt: admin.firestore.FieldValue.serverTimestamp(), // set lastSeenAt to current server time when the user word is created
       }
 
       await userWordRef.set(newUserWord)
