@@ -22,61 +22,48 @@ exports.getLearningWords = functions.https.onCall(async (data, context) => {
   const userID = context.auth.uid
 
   try {
-    // Define the timestamp for 1 hour ago and 15 minutes ago
-    const oneHourAgo = admin.firestore.Timestamp.fromDate(
-      new Date(Date.now() - 1000 * 60 * 60)
-    )
+    // Define the timestamp for 15 minutes ago
     const fifteenMinutesAgo = admin.firestore.Timestamp.fromDate(
       new Date(Date.now() - 1000 * 60 * 15)
     )
 
-    // Fetch the UserWords for the current user that were last seen more than an hour ago
-    const oldUserWordsSnapshot = await db
+    // Fetch the UserWords for the current user that were last seen more than 15 minutes ago
+    const userWordsSnapshot = await db
       .collection("UserWord")
       .where("userId", "==", userID)
-      .where("lastSeenAt", "<", oneHourAgo)
+      .where("lastSeenAt", "<", fifteenMinutesAgo)
       .orderBy("lastSeenAt", "desc")
       .limit(15)
       .get()
 
-    // Fetch all UserWords for the current user
-    const allUserWordsSnapshot = await db
+    const totalUserWordsSnapshot = await db
       .collection("UserWord")
       .where("userId", "==", userID)
       .get()
 
-    // Create an array of the ids of the Word documents corresponding to the UserWord documents
-    const userWordIds = allUserWordsSnapshot.docs.map((doc) => doc.id)
-
-    let oldUserWords = oldUserWordsSnapshot.docs.map((doc) => ({
+    let userWords = userWordsSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }))
 
-    let newWords = []
-    if (oldUserWords.length < 15) {
-      const newWordsNeeded = 15 - oldUserWords.length
+    // Create a Set of the ids of the Word documents corresponding to the UserWord documents
+    const userWordIds = new Set(
+      totalUserWordsSnapshot.docs.map((doc) => doc.id)
+    )
 
-      // Fetch the Word documents that do not have corresponding UserWord documents for the current user
-      const newWordsSnapshot = await db
-        .collection("Word")
-        .where(admin.firestore.FieldPath.documentId(), "not-in", userWordIds)
-        .where("difficulty", "==", "intermediate")
-        .limit(newWordsNeeded)
-        .get()
+    // Fetch all Word documents
+    const allWordsSnapshot = await db.collection("Word").get()
 
-      newWords = newWordsSnapshot.docs.map((doc) => ({
+    // Filter out the Word documents that have corresponding UserWord documents for the current user
+    let unseenWords = allWordsSnapshot.docs
+      .filter((doc) => !userWordIds.has(doc.id))
+      .map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }))
-    }
 
     // Combine old and new words, excluding UserWords seen in the last 15 minutes
-    const wordsToShow = [...oldUserWords, ...newWords]
-      .filter(
-        (word) => !(word.lastSeenAt && word.lastSeenAt >= fifteenMinutesAgo)
-      )
-      .slice(0, 15)
+    const wordsToShow = [...userWords, ...unseenWords].slice(0, 15)
 
     return wordsToShow
   } catch (error) {
