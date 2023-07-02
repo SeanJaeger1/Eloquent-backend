@@ -29,4 +29,4 @@ const getUserWords = functions.https.onCall(async (data, context) => {
   }
 });
 
-    module.exports = getUserWords;
+module.exports = getUserWords;
