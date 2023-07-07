@@ -44,7 +44,7 @@ const updateWordProgress = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('not-found', 'Word not found.');
     }
 
-    const wordData = wordSnapshot.data();
+    const wordData = wordRef; // Save the reference, not the data
     const newUserWord = {
       word: wordData,
       progress: Math.max(1, increment),
