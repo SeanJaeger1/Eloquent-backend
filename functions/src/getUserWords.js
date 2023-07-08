@@ -14,7 +14,7 @@ const getUserWords = functions.https.onCall(async (data, context) => {
 
   try {
     const userWordsSnapshot = await db
-      .collection('UserWord')
+      .collection('userWords')
       .where('userId', '==', userID)
       .get();
 
