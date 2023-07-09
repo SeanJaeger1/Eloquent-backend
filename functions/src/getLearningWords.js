@@ -21,15 +21,11 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
   }
 
   const wordLimit = 10;
-
   const userID = context.auth.uid;
 
   const user = await fetchUser(userID);
 
   try {
-    // get user words needed
-
-    // if extra space, add more words
     const wordsSnapshot = await db
       .collection('words')
       .where('difficulty', '==', user.skillLevel)
@@ -43,26 +39,28 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
       ...doc.data(),
     }));
 
-    const userWords = await Promise.all(words.map(async (word) => {
-      const wordRef = db.collection('words').doc(word.id);
-      const userWordRef = db.collection('userWords').doc();
-      const wordData = await wordRef.get();
-      const newUserWord = {
-        word: wordRef,
-        progress: 1,
-        userId: userID,
-        lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
-      };
-      await userWordRef.set(newUserWord);
-      return {
-        ...newUserWord,
-        word: wordData.data(),  // Return the actual word data
-      };
+    const batch = db.batch();
+    const userWordRefs = words.map(() => db.collection('userWords').doc());
+    const wordRefs = words.map(word => db.collection('words').doc(word.id));
+    const wordDatas = await Promise.all(wordRefs.map(ref => ref.get()));
+
+    const newUserWords = words.map((word, i) => ({
+      word: wordRefs[i],
+      progress: 1,
+      userId: userID,
+      lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
     }));
 
-    return {
-      userWords: await Promise.all(userWords),
-    };
+    newUserWords.forEach((newUserWord, i) => {
+      batch.set(userWordRefs[i], newUserWord);
+    });
+
+    await batch.commit();
+
+    return newUserWords.map((newUserWord, i) => ({
+      ...newUserWord,
+      word: wordDatas[i].data(), // Return the actual word data
+    }));
   } catch (error) {
     throw new functions.https.HttpsError(
       'internal',
