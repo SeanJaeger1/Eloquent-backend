@@ -84,6 +84,17 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
 
     await batch.commit();
 
+    if (remainingWordLimit > 0) {
+      // Make a fresh fetch of user data
+      const freshUser = await fetchUser(userID);
+      // Copy nextWords array
+      const nextWords = [...freshUser.nextWords];
+      // Increment the value at the specific index
+      nextWords[skillToIdx[user.skillLevel]] += remainingWordLimit;
+      // Update the user document with the new nextWords array
+      await db.collection('users').doc(userID).update({ nextWords });
+    }
+
     const userWordSnapshots = await Promise.all(userWordRefs.map(ref => ref.get()));
 
     const newUserWordsWithIds = userWordSnapshots.map((snapshot, i) => ({
