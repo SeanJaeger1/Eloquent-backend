@@ -18,17 +18,22 @@ const getUserWords = functions.region('europe-west1').https.onCall(async (data, 
       .where('userId', '==', userID)
       .get();
 
-    const userWords = await Promise.all(userWordsSnapshot.docs.map(async (doc) => {
+    const userWords = userWordsSnapshot.docs.reduce(async (promiseAccumulator, doc) => {
+      const accumulator = await promiseAccumulator;
       const wordRef = doc.data().word;
       const wordSnapshot = await wordRef.get();
       const wordData = wordSnapshot.data();
-      return {
+
+      accumulator.push({
         id: doc.id,
         word: wordData,
         progress: doc.data().progress,
         lastSeenAt: doc.data().lastSeenAt,
-      };
-    }));
+      });
+
+      return accumulator;
+    }, Promise.resolve([]));
+
 
     return userWords;
   } catch (error) {
