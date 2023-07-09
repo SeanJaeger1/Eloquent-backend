@@ -46,11 +46,18 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
 
     const remainingWordLimit = wordLimit - previouslySeenWords.length;
 
+    const skillToIdx = {
+      beginner: 0,
+      intermediate: 1,
+      advanced: 2,
+      expert: 3,
+    };
+
     const wordsSnapshot = await db
       .collection('words')
       .where('difficulty', '==', user.skillLevel)
-      .where('index', '>=', user.nextWords[2])
-      .where('index', '<=', user.nextWords[2] + remainingWordLimit)
+      .where('index', '>=', user.nextWords[skillToIdx[user.skillLevel]])
+      .where('index', '<=', user.nextWords[skillToIdx[user.skillLevel]] + remainingWordLimit)
       .limit(remainingWordLimit)
       .get();
 
