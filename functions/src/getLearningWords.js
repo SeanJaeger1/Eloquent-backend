@@ -29,16 +29,23 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
     const previouslySeenWordsSnapshot = await db
       .collection('userWords')
       .where('userId', '==', userID)
-      .where('progress', '!=', 5)
-      .where('difficulty', '==', user.skillLevel)
+      .where('learned', '==', false)
+      .where('lastSeenAt', '<', admin.firestore.Timestamp.fromDate(new Date(Date.now() - 15 * 60 * 1000)))
       .limit(wordLimit)
       .get();
 
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const previouslySeenWords = await Promise.all(previouslySeenWordsSnapshot.docs.map(async (doc) => {
+      const wordRef = doc.data().word;
+      const wordSnapshot = await wordRef.get();
+      const wordData = wordSnapshot.data();
 
-    const previouslySeenWords = previouslySeenWordsSnapshot.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .filter((doc) => doc.lastSeenAt.toDate() < fifteenMinutesAgo);
+      return {
+        id: doc.id,
+        ...doc.data(),
+        word: wordData, // Here, we replace the Firestore document reference with actual data
+        lastSeenAt: doc.data().lastSeenAt.toDate(),
+      };
+    }));
 
     if (previouslySeenWords.length === wordLimit) {
       return previouslySeenWords;
@@ -57,7 +64,7 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
       .collection('words')
       .where('difficulty', '==', user.skillLevel)
       .where('index', '>=', user.nextWords[skillToIdx[user.skillLevel]])
-      .where('index', '<=', user.nextWords[skillToIdx[user.skillLevel]] + remainingWordLimit)
+      .where('index', '<', user.nextWords[skillToIdx[user.skillLevel]] + remainingWordLimit)
       .limit(remainingWordLimit)
       .get();
 
@@ -68,14 +75,15 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
 
     const batch = db.batch();
     const userWordRefs = words.map(() => db.collection('userWords').doc());
-    const wordRefs = words.map(word => db.collection('words').doc(word.id));
-    const wordDatas = await Promise.all(wordRefs.map(ref => ref.get()));
+    const wordRefs = words.map((word) => db.collection('words').doc(word.id));
+    const wordDatas = await Promise.all(wordRefs.map((ref) => ref.get()));
 
     const newUserWords = words.map((word, i) => ({
       word: wordRefs[i],
       progress: 1,
       userId: userID,
       lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
+      learned: false,
     }));
 
     newUserWords.forEach((newUserWord, i) => {
@@ -105,7 +113,7 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
 
     return [...previouslySeenWords, ...newUserWordsWithIds];
   } catch (error) {
-    console.log(error)
+    console.log(error);
     throw new functions.https.HttpsError(
       'internal',
       'An error occurred while fetching learning words.',

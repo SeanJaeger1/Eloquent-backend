@@ -34,7 +34,6 @@ const getUserWords = functions.region('europe-west1').https.onCall(async (data, 
       return accumulator;
     }, Promise.resolve([]));
 
-
     return userWords;
   } catch (error) {
     throw new functions.https.HttpsError(

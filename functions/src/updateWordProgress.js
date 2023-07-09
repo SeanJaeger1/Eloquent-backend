@@ -17,10 +17,18 @@ const updateWordProgress = functions.region('europe-west1').https.onCall(async (
     const userWordSnapshot = await userWordRef.get();
     const userWordData = userWordSnapshot.data();
     const updatedProgress = (increment === 1) ? Math.min(5, userWordData.progress + increment) : Math.max(1, userWordData.progress + increment)
-    await userWordRef.update({
-      progress: updatedProgress,
-      lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    if (updatedProgress === 5) {
+      await userWordRef.update({
+        progress: updatedProgress,
+        lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
+        learned: true,
+      });
+    } else {
+      await userWordRef.update({
+        progress: updatedProgress,
+        lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
   } catch (error) {
     throw new functions.https.HttpsError(
       'internal',
