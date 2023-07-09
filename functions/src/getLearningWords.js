@@ -12,7 +12,7 @@ async function fetchUser(userID) {
   return userData;
 }
 
-const getLearningWords = functions.https.onCall(async (data, context) => {
+const getLearningWords = functions.region('europe-west1').https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError(
       'unauthenticated',

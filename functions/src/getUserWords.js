@@ -1,7 +1,7 @@
 const functions = require('firebase-functions');
 const db = require('./firebaseAdmin');
 
-const getUserWords = functions.https.onCall(async (data, context) => {
+const getUserWords = functions.region('europe-west1').https.onCall(async (data, context) => {
   // Check if the user is authenticated
   if (!context.auth) {
     throw new functions.https.HttpsError(
