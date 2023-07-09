@@ -26,12 +26,32 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
   const user = await fetchUser(userID);
 
   try {
+    const previouslySeenWordsSnapshot = await db
+      .collection('userWords')
+      .where('userId', '==', userID)
+      .where('progress', '!=', 5)
+      .where('difficulty', '==', user.skillLevel)
+      .limit(wordLimit)
+      .get();
+
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+    const previouslySeenWords = previouslySeenWordsSnapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .filter((doc) => doc.lastSeenAt.toDate() < fifteenMinutesAgo);
+
+    if (previouslySeenWords.length === wordLimit) {
+      return previouslySeenWords;
+    }
+
+    const remainingWordLimit = wordLimit - previouslySeenWords.length;
+
     const wordsSnapshot = await db
       .collection('words')
       .where('difficulty', '==', user.skillLevel)
       .where('index', '>=', user.nextWords[2])
-      .where('index', '<=', user.nextWords[2] + wordLimit)
-      .limit(wordLimit)
+      .where('index', '<=', user.nextWords[2] + remainingWordLimit)
+      .limit(remainingWordLimit)
       .get();
 
     const words = wordsSnapshot.docs.map((doc) => ({
@@ -57,11 +77,17 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
 
     await batch.commit();
 
-    return newUserWords.map((newUserWord, i) => ({
-      ...newUserWord,
+    const userWordSnapshots = await Promise.all(userWordRefs.map(ref => ref.get()));
+
+    const newUserWordsWithIds = userWordSnapshots.map((snapshot, i) => ({
+      id: snapshot.id,
+      ...newUserWords[i],
       word: wordDatas[i].data(), // Return the actual word data
     }));
+
+    return [...previouslySeenWords, ...newUserWordsWithIds];
   } catch (error) {
+    console.log(error)
     throw new functions.https.HttpsError(
       'internal',
       'An error occurred while fetching learning words.',
