@@ -18,7 +18,17 @@ const getUserWords = functions.https.onCall(async (data, context) => {
       .where('userId', '==', userID)
       .get();
 
-    const userWords = userWordsSnapshot.docs.map((doc) => doc.data());
+    const userWords = await Promise.all(userWordsSnapshot.docs.map(async (doc) => {
+      const wordRef = doc.data().word;
+      const wordSnapshot = await wordRef.get();
+      const wordData = wordSnapshot.data();
+      return {
+        id: doc.id,
+        word: wordData,
+        progress: doc.data().progress,
+        lastSeenAt: doc.data().lastSeenAt,
+      };
+    }));
 
     return userWords;
   } catch (error) {
