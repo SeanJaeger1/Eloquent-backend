@@ -1,8 +1,22 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+    // Matches any document in the 'words' collection
+    match /words/{document=**} {
+      allow read: if true;  // Anyone can read
+      allow write: if false;  // No one can write
+    }
+
+    // Matches any document in the 'users' collection
+    match /users/{userId} {
+      // Only a logged in user can read and write their own document
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Matches any document in the 'userWords' collection
+    match /userWords/{document=**} {
+      // A logged in user can read and write their own documents
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
     }
   }
 }
