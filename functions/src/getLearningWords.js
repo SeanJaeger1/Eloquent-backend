@@ -20,7 +20,7 @@ const getLearningWords = functions.region('europe-west1').https.onCall(async (da
     );
   }
 
-  const wordLimit = 10;
+  const wordLimit = 5;
   const userID = context.auth.uid;
 
   const user = await fetchUser(userID);

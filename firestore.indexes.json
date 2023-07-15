@@ -27,6 +27,20 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "lastSeenAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "userWords",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "progress",
           "order": "ASCENDING"
         }
