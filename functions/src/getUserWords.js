@@ -10,31 +10,47 @@ const getUserWords = functions.region('europe-west1').https.onCall(async (data, 
   }
 
   const userID = context.auth.uid;
+  let lastSeenAt = null;
+  if (data.lastSeenAt) {
+    const tempDate = new Date(data.lastSeenAt);
+    if (!isNaN(tempDate)) {
+      lastSeenAt = tempDate;
+    } else {
+      console.error("Invalid lastSeenAt timestamp:", data.lastSeenAt);
+      // handle error here
+    }
+  } const limit = data.limit || 10;
 
   try {
-    const userWordsSnapshot = await db
+    let userWordsQuery = db
       .collection('userWords')
       .where('userId', '==', userID)
-      .get();
+      .orderBy('lastSeenAt')
+      .limit(limit);
 
-    const userWords = userWordsSnapshot.docs.reduce(async (promiseAccumulator, doc) => {
-      const accumulator = await promiseAccumulator;
+    if (lastSeenAt) {
+      userWordsQuery = userWordsQuery.startAfter(lastSeenAt);
+    }
+
+    const userWordsSnapshot = await userWordsQuery.get();
+
+    const userWords = await Promise.all(userWordsSnapshot.docs.map(async (doc) => {
       const wordRef = doc.data().word;
       const wordSnapshot = await wordRef.get();
       const wordData = wordSnapshot.data();
-
-      accumulator.push({
+      return {
         id: doc.id,
         word: wordData,
         progress: doc.data().progress,
-        lastSeenAt: doc.data().lastSeenAt,
-      });
+        lastSeenAt: doc.data().lastSeenAt.toDate().toISOString(),
+      };
+    }));
 
-      return accumulator;
-    }, Promise.resolve([]));
+    const nextPageToken = userWords.length > 0 ? userWords[userWords.length - 1].lastSeenAt : null;
 
-    return userWords;
+    return { userWords, nextPageToken };
   } catch (error) {
+    console.log(error);
     throw new functions.https.HttpsError(
       'internal',
       'Error fetching user words',
