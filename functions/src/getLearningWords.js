@@ -89,6 +89,7 @@ const getLearningWords = functions
         userId: userID,
         lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
         learned: false,
+        skillLevel: user.skillLevel,
       }))
 
       newUserWords.forEach((newUserWord, i) => {
