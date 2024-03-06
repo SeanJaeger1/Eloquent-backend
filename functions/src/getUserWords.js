@@ -1,5 +1,6 @@
 const functions = require("firebase-functions")
 const db = require("./firebaseAdmin")
+const { fetchUser } = require("./utils/userUtils")
 
 const getUserWords = functions
   .region("europe-west1")
@@ -12,6 +13,8 @@ const getUserWords = functions
     }
 
     const userID = context.auth.uid
+    const user = await fetchUser(userID)
+
     let lastSeenAt = null
     if (data.lastSeenAt) {
       const tempDate = new Date(data.lastSeenAt)
@@ -28,6 +31,7 @@ const getUserWords = functions
       let userWordsQuery = db
         .collection("userWords")
         .where("userId", "==", userID)
+        .where("skillLevel", "==", user.skillLevel)
         .orderBy("lastSeenAt")
         .limit(limit)
 
