@@ -1,19 +1,7 @@
 const functions = require("firebase-functions")
 const admin = require("firebase-admin")
 const db = require("./firebaseAdmin")
-
-async function fetchUser(userID) {
-  const userSnapshot = await db
-    .collection("users")
-    .where("uid", "==", userID)
-    .get()
-  const userDoc = userSnapshot.docs[0]
-  if (!userDoc.exists) {
-    throw new Error(`User ${userID} not found.`)
-  }
-  const userData = userDoc.data()
-  return userData
-}
+const { fetchUser } = require("./utils/userUtils")
 
 const getLearningWords = functions
   .region("europe-west1")
