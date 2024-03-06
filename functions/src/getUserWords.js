@@ -31,7 +31,7 @@ const getUserWords = functions
       let userWordsQuery = db
         .collection("userWords")
         .where("userId", "==", userID)
-        .where("skillLevel", "==", user.skillLevel)
+        .where("difficulty", "==", user.skillLevel)
         .orderBy("lastSeenAt")
         .limit(limit)
 

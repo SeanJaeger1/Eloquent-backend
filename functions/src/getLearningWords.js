@@ -22,6 +22,7 @@ const getLearningWords = functions
       const previouslySeenWordsSnapshot = await db
         .collection("userWords")
         .where("userId", "==", userID)
+        .where("difficulty", "==", user.skillLevel)
         .where("learned", "==", false)
         .where(
           "lastSeenAt",
@@ -89,7 +90,7 @@ const getLearningWords = functions
         userId: userID,
         lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
         learned: false,
-        skillLevel: user.skillLevel,
+        difficulty: user.skillLevel,
       }))
 
       newUserWords.forEach((newUserWord, i) => {
