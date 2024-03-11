@@ -23,6 +23,7 @@ const getLearningWords = functions
         .collection("userWords")
         .where("userId", "==", userID)
         .where("difficulty", "==", user.skillLevel)
+        .where("alreadyKnown", "==", false)
         .where("learned", "==", false)
         .where(
           "lastSeenAt",
@@ -88,9 +89,10 @@ const getLearningWords = functions
         word: wordRefs[i],
         progress: 1,
         userId: userID,
-        lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastSeenAt: null,
         learned: false,
         difficulty: user.skillLevel,
+        alreadyKnown: false,
       }))
 
       newUserWords.forEach((newUserWord, i) => {

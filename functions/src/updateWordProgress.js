@@ -21,7 +21,11 @@ const updateWordProgress = functions
         increment === 1
           ? Math.min(5, userWordData.progress + increment)
           : Math.max(1, userWordData.progress + increment)
-      if (updatedProgress === 5) {
+      if (userWordData.lastSeenAt === null && increment === 1) {
+        await userWordRef.update({
+          alreadyKnown: true,
+        })
+      } else if (updatedProgress === 5) {
         await userWordRef.update({
           progress: updatedProgress,
           lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),

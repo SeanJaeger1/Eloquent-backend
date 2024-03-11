@@ -1,5 +1,6 @@
 const functions = require("firebase-functions")
 const db = require("./firebaseAdmin")
+const admin = require("firebase-admin")
 const { fetchUser } = require("./utils/userUtils")
 
 const getUserWords = functions
@@ -32,6 +33,7 @@ const getUserWords = functions
         .collection("userWords")
         .where("userId", "==", userID)
         .where("difficulty", "==", user.skillLevel)
+        .where("alreadyKnown", "==", false)
         .orderBy("lastSeenAt")
         .limit(limit)
 
@@ -50,7 +52,10 @@ const getUserWords = functions
             id: doc.id,
             word: wordData,
             progress: doc.data().progress,
-            lastSeenAt: doc.data().lastSeenAt.toDate().toISOString(),
+            lastSeenAt:
+              doc.data().lastSeenAt === null
+                ? admin.firestore.FieldValue.serverTimestamp()
+                : doc.data().lastSeenAt.toDate().toISOString(),
           }
         })
       )
