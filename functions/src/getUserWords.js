@@ -1,76 +1,83 @@
 const functions = require("firebase-functions")
-const db = require("./firebaseAdmin")
 const admin = require("firebase-admin")
+const db = require("./firebaseAdmin")
 const { fetchUser } = require("./utils/userUtils")
 
-const getUserWords = functions
-  .region("europe-west1")
-  .https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "User must be authenticated to fetch user words."
-      )
+const getUserWords = functions.region("europe-west1").https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be authenticated to fetch user words."
+    )
+  }
+
+  const userID = context.auth.uid
+  const user = await fetchUser(userID)
+
+  let lastSeenAt = null
+  if (data.lastSeenAt) {
+    const tempDate = new Date(data.lastSeenAt)
+    if (!isNaN(tempDate)) {
+      lastSeenAt = tempDate
+    } else {
+      console.error("Invalid lastSeenAt timestamp:", data.lastSeenAt)
+      // handle error here
+    }
+  }
+  const limit = data.limit || 10
+
+  try {
+    let userWordsQuery = db
+      .collection("userWords")
+      .where("userId", "==", userID)
+      .where("difficulty", "==", user.skillLevel)
+      .where("alreadyKnown", "==", false)
+      .orderBy("lastSeenAt")
+      .limit(limit)
+
+    if (lastSeenAt) {
+      userWordsQuery = userWordsQuery.startAfter(lastSeenAt)
     }
 
-    const userID = context.auth.uid
-    const user = await fetchUser(userID)
+    const userWordsSnapshot = await userWordsQuery.get()
 
-    let lastSeenAt = null
-    if (data.lastSeenAt) {
-      const tempDate = new Date(data.lastSeenAt)
-      if (!isNaN(tempDate)) {
-        lastSeenAt = tempDate
-      } else {
-        console.error("Invalid lastSeenAt timestamp:", data.lastSeenAt)
-        // handle error here
-      }
-    }
-    const limit = data.limit || 10
+    // Create a batch for updating lastSeenAt values
+    const batch = db.batch()
 
-    try {
-      let userWordsQuery = db
-        .collection("userWords")
-        .where("userId", "==", userID)
-        .where("difficulty", "==", user.skillLevel)
-        .where("alreadyKnown", "==", false)
-        .orderBy("lastSeenAt")
-        .limit(limit)
+    const userWords = await Promise.all(
+      userWordsSnapshot.docs.map(async (doc) => {
+        const wordRef = doc.data().word
+        const wordSnapshot = await wordRef.get()
+        const wordData = wordSnapshot.data()
 
-      if (lastSeenAt) {
-        userWordsQuery = userWordsQuery.startAfter(lastSeenAt)
-      }
+        // If word has never been seen, update its lastSeenAt
+        if (doc.data().lastSeenAt === null) {
+          const timestamp = admin.firestore.FieldValue.serverTimestamp()
+          batch.update(doc.ref, { lastSeenAt: timestamp })
+        }
 
-      const userWordsSnapshot = await userWordsQuery.get()
+        return {
+          id: doc.id,
+          word: wordData,
+          progress: doc.data().progress,
+          lastSeenAt:
+            doc.data().lastSeenAt === null
+              ? new Date().toISOString()
+              : doc.data().lastSeenAt.toDate().toISOString(),
+        }
+      })
+    )
 
-      const userWords = await Promise.all(
-        userWordsSnapshot.docs.map(async (doc) => {
-          const wordRef = doc.data().word
-          const wordSnapshot = await wordRef.get()
-          const wordData = wordSnapshot.data()
-          return {
-            id: doc.id,
-            word: wordData,
-            progress: doc.data().progress,
-            lastSeenAt:
-              doc.data().lastSeenAt === null
-                ? admin.firestore.FieldValue.serverTimestamp()
-                : doc.data().lastSeenAt.toDate().toISOString(),
-          }
-        })
-      )
+    // Commit all lastSeenAt updates
+    await batch.commit()
 
-      const nextPageToken =
-        userWords.length > 0 ? userWords[userWords.length - 1].lastSeenAt : null
+    const nextPageToken = userWords.length > 0 ? userWords[userWords.length - 1].lastSeenAt : null
 
-      return { userWords, nextPageToken }
-    } catch (error) {
-      console.log(error)
-      throw new functions.https.HttpsError(
-        "internal",
-        "Error fetching user words"
-      )
-    }
-  })
+    return { userWords, nextPageToken }
+  } catch (error) {
+    console.log(error)
+    throw new functions.https.HttpsError("internal", "Error fetching user words")
+  }
+})
 
 module.exports = getUserWords
