@@ -1,4 +1,4 @@
-const db = require("../firebaseAdmin.js")
+const { db } = require("../firebaseAdmin.js")
 
 async function fetchUser(userID) {
   const userSnapshot = await db.collection("users").where("uid", "==", userID).get()

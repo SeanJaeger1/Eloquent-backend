@@ -1,121 +1,133 @@
-const functions = require("firebase-functions")
 const admin = require("firebase-admin")
-const db = require("./firebaseAdmin")
-const { fetchUser } = require("./utils/userUtils")
+const { db } = require("./firebaseAdmin")
+const { onCall } = require("firebase-functions/v2/https")
 
-const getLearningWords = functions.region("europe-west1").https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      "unauthenticated",
-      "User must be authenticated to fetch learning words."
-    )
-  }
+const getLearningWords = onCall(
+  {
+    region: "europe-west1",
+    cors: ["https://learn-eloquent.com", "http://localhost:8081"],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new Error("unauthenticated", "User must be authenticated to fetch learning words.")
+    }
 
-  const wordLimit = 5
-  const userID = context.auth.uid
+    const wordLimit = 5
+    const userID = request.auth.uid
+    const FIFTEEN_MINUTES = 15 * 60 * 1000 // Extract as constant for readability
 
-  const user = await fetchUser(userID)
+    try {
+      // Use a transaction to safely update user state
+      return await db.runTransaction(async (transaction) => {
+        // Get user data in transaction
+        const userRef = db.collection("users").doc(userID)
+        const userDoc = await transaction.get(userRef)
+        if (!userDoc.exists) {
+          throw new Error("not-found", "User not found")
+        }
+        const user = userDoc.data()
 
-  try {
-    const previouslySeenWordsSnapshot = await db
-      .collection("userWords")
-      .where("userId", "==", userID)
-      .where("difficulty", "==", user.skillLevel)
-      .where("alreadyKnown", "==", false)
-      .where("learned", "==", false)
-      .where(
-        "lastSeenAt",
-        "<",
-        admin.firestore.Timestamp.fromDate(new Date(Date.now() - 15 * 60 * 1000))
-      )
-      .limit(wordLimit)
-      .get()
+        // Get previously seen words
+        const previouslySeenWordsSnapshot = await db
+          .collection("userWords")
+          .where("userId", "==", userID)
+          .where("difficulty", "==", user.skillLevel)
+          .where("alreadyKnown", "==", false)
+          .where("learned", "==", false)
+          .where(
+            "lastSeenAt",
+            "<",
+            admin.firestore.Timestamp.fromDate(new Date(Date.now() - FIFTEEN_MINUTES))
+          )
+          .limit(wordLimit)
+          .get()
 
-    const previouslySeenWords = await Promise.all(
-      previouslySeenWordsSnapshot.docs.map(async (doc) => {
-        const wordRef = doc.data().word
-        const wordSnapshot = await wordRef.get()
-        const wordData = wordSnapshot.data()
+        const previouslySeenWords = await Promise.all(
+          previouslySeenWordsSnapshot.docs.map(async (doc) => {
+            const wordRef = doc.data().word
+            const wordSnapshot = await wordRef.get()
+            const wordData = wordSnapshot.data()
 
-        return {
+            return {
+              id: doc.id,
+              ...doc.data(),
+              word: wordData,
+              lastSeenAt: doc.data().lastSeenAt?.toDate() || null,
+            }
+          })
+        )
+
+        if (previouslySeenWords.length === wordLimit) {
+          return previouslySeenWords
+        }
+
+        const remainingWordLimit = wordLimit - previouslySeenWords.length
+        const skillToIdx = {
+          beginner: 0,
+          intermediate: 1,
+          advanced: 2,
+          expert: 3,
+        }
+
+        const currentIndex = user.nextWords[skillToIdx[user.skillLevel]]
+        const targetIndex = currentIndex + remainingWordLimit
+
+        // Get new words in a single query
+        const wordsSnapshot = await db
+          .collection("words")
+          .where("difficulty", "==", user.skillLevel)
+          .where("index", ">=", currentIndex)
+          .where("index", "<", targetIndex)
+          .limit(remainingWordLimit)
+          .get()
+
+        const words = wordsSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-          word: wordData,
-          lastSeenAt: doc.data().lastSeenAt.toDate(),
+        }))
+
+        // If we found new words, update the user's nextWords index in the transaction
+        if (words.length > 0) {
+          const nextWords = [...user.nextWords]
+          nextWords[skillToIdx[user.skillLevel]] = targetIndex
+          transaction.update(userRef, { nextWords })
         }
+
+        // Create new userWords
+        const newUserWordsData = []
+        for (const word of words) {
+          const userWordRef = db.collection("userWords").doc()
+          const wordRef = db.collection("words").doc(word.id)
+
+          const newUserWord = {
+            word: wordRef,
+            progress: 1,
+            userId: userID,
+            lastSeenAt: null,
+            learned: false,
+            difficulty: user.skillLevel,
+            alreadyKnown: false,
+          }
+
+          transaction.set(userWordRef, newUserWord)
+
+          newUserWordsData.push({
+            id: userWordRef.id,
+            ...newUserWord,
+            word: word,
+          })
+        }
+
+        return [...previouslySeenWords, ...newUserWordsData]
       })
-    )
-
-    if (previouslySeenWords.length === wordLimit) {
-      return previouslySeenWords
+    } catch (error) {
+      console.error("Error in getLearningWords:", error)
+      throw new Error(
+        "internal",
+        `Failed to fetch learning words: ${error.message || "Unknown error"}`
+      )
     }
-
-    const remainingWordLimit = wordLimit - previouslySeenWords.length
-
-    const skillToIdx = {
-      beginner: 0,
-      intermediate: 1,
-      advanced: 2,
-      expert: 3,
-    }
-
-    const wordsSnapshot = await db
-      .collection("words")
-      .where("difficulty", "==", user.skillLevel)
-      .where("index", ">=", user.nextWords[skillToIdx[user.skillLevel]])
-      .where("index", "<", user.nextWords[skillToIdx[user.skillLevel]] + remainingWordLimit)
-      .limit(remainingWordLimit)
-      .get()
-
-    const words = wordsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }))
-
-    const batch = db.batch()
-    const userWordRefs = words.map(() => db.collection("userWords").doc())
-    const wordRefs = words.map((word) => db.collection("words").doc(word.id))
-    const wordDatas = await Promise.all(wordRefs.map((ref) => ref.get()))
-
-    const newUserWords = words.map((word, i) => ({
-      word: wordRefs[i],
-      progress: 1,
-      userId: userID,
-      lastSeenAt: null,
-      learned: false,
-      difficulty: user.skillLevel,
-      alreadyKnown: false,
-    }))
-
-    newUserWords.forEach((newUserWord, i) => {
-      batch.set(userWordRefs[i], newUserWord)
-    })
-
-    await batch.commit()
-
-    if (remainingWordLimit > 0) {
-      const freshUser = await fetchUser(userID)
-      const nextWords = [...freshUser.nextWords]
-      nextWords[skillToIdx[user.skillLevel]] += remainingWordLimit
-      await db.collection("users").doc(userID).update({ nextWords })
-    }
-
-    const userWordSnapshots = await Promise.all(userWordRefs.map((ref) => ref.get()))
-
-    const newUserWordsWithIds = userWordSnapshots.map((snapshot, i) => ({
-      id: snapshot.id,
-      ...newUserWords[i],
-      word: wordDatas[i].data(),
-    }))
-
-    return [...previouslySeenWords, ...newUserWordsWithIds]
-  } catch (error) {
-    console.log(error)
-    throw new functions.https.HttpsError(
-      "internal",
-      "An error occurred while fetching learning words."
-    )
   }
-})
+)
 
 module.exports = getLearningWords
