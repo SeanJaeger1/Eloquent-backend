@@ -1,11 +1,12 @@
-const admin = require("firebase-admin")
-const { db } = require("./firebaseAdmin")
-const { onCall } = require("firebase-functions/v2/https")
+import admin from "firebase-admin"
+import { db } from "./firebaseAdmin.js"
+import { onCall } from "firebase-functions/v2/https"
+import config from "./utils/config.js"
 
 const updateWordProgress = onCall(
   {
-    region: "europe-west1",
-    cors: ["https://learn-eloquent.com", "http://localhost:8081"],
+    region: config.region,
+    cors: config.cors,
   },
   async (request) => {
     if (!request.auth) {
@@ -74,4 +75,4 @@ const updateWordProgress = onCall(
   }
 )
 
-module.exports = updateWordProgress
+export default updateWordProgress

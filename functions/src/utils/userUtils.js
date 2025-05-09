@@ -1,4 +1,4 @@
-const { db } = require("../firebaseAdmin.js")
+import { db } from "../firebaseAdmin.js"
 
 async function fetchUser(userID) {
   const userSnapshot = await db.collection("users").where("uid", "==", userID).get()
@@ -10,4 +10,4 @@ async function fetchUser(userID) {
   return userData
 }
 
-module.exports = { fetchUser }
+export { fetchUser }

@@ -12,7 +12,10 @@ export default [
       ecmaVersion: "latest",
       sourceType: "module",
       globals: {
-        // This replaces the old "env" property
+        // Explicitly add globals for Node.js environment
+        console: "readonly",
+        process: "readonly",
+        // Keep existing environment globals
         es2021: true,
         node: true,
       },
@@ -21,7 +24,7 @@ export default [
       prettier: prettierPlugin,
     },
     rules: {
-      "no-console": ["error", { allow: ["error", "warn", "info"] }],
+      "no-console": ["error", { allow: ["error", "warn", "info", "log"] }],
       semi: ["error", "never"],
       quotes: ["error", "double"],
       "object-curly-spacing": ["error", "always"],

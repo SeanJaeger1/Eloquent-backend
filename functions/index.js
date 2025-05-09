@@ -1,3 +1,5 @@
-exports.getLearningWords = require("./src/getLearningWords")
-exports.getUserWords = require("./src/getUserWords")
-exports.updateWordProgress = require("./src/updateWordProgress")
+import getLearningWords from "./src/getLearningWords.js"
+import getUserWords from "./src/getUserWords.js"
+import updateWordProgress from "./src/updateWordProgress.js"
+
+export { getLearningWords, getUserWords, updateWordProgress }

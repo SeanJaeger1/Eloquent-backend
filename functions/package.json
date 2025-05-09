@@ -3,10 +3,16 @@
   "description": "Cloud Functions for Firebase",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
+    "serve:dev": "NODE_ENV=development firebase emulators:start --only functions --project=dev",
+    "serve:prod": "NODE_ENV=production firebase emulators:start --only functions --project=prod",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "deploy:dev": "NODE_ENV=development firebase deploy --only functions --project=dev",
+    "deploy:prod": "NODE_ENV=production firebase deploy --only functions --project=prod",
+    "logs": "firebase functions:log",
+    "logs:dev": "firebase functions:log --project=dev",
+    "logs:prod": "firebase functions:log --project=prod"
   },
   "engines": {
     "node": "18"

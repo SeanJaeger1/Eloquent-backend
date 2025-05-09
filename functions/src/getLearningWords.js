@@ -1,20 +1,21 @@
-const admin = require("firebase-admin")
-const { db } = require("./firebaseAdmin")
-const { onCall } = require("firebase-functions/v2/https")
+import admin from "firebase-admin"
+import { db } from "./firebaseAdmin.js"
+import { onCall } from "firebase-functions/v2/https"
+import config from "./utils/config.js"
 
 const getLearningWords = onCall(
   {
-    region: "europe-west1",
-    cors: ["https://learn-eloquent.com", "http://localhost:8081"],
+    region: config.region,
+    cors: config.cors,
   },
   async (request) => {
     if (!request.auth) {
       throw new Error("unauthenticated", "User must be authenticated to fetch learning words.")
     }
 
-    const wordLimit = 5
+    const wordLimit = config.wordLimits.default
     const userID = request.auth.uid
-    const FIFTEEN_MINUTES = 15 * 60 * 1000 // Extract as constant for readability
+    const FIFTEEN_MINUTES = config.timeoutSettings.FIFTEEN_MINUTES
 
     try {
       // Use a transaction to safely update user state
@@ -130,4 +131,4 @@ const getLearningWords = onCall(
   }
 )
 
-module.exports = getLearningWords
+export default getLearningWords

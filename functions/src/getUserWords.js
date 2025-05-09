@@ -1,12 +1,13 @@
-const admin = require("firebase-admin")
-const { db } = require("./firebaseAdmin")
-const { fetchUser } = require("./utils/userUtils")
-const { onCall } = require("firebase-functions/v2/https")
+import admin from "firebase-admin"
+import { db } from "./firebaseAdmin.js"
+import { fetchUser } from "./utils/userUtils.js"
+import { onCall } from "firebase-functions/v2/https"
+import config from "./utils/config.js"
 
 const getUserWords = onCall(
   {
-    region: "europe-west1",
-    cors: ["https://learn-eloquent.com", "http://localhost:8081"],
+    region: config.region,
+    cors: config.cors,
   },
   async (request) => {
     if (!request.auth) {
@@ -28,7 +29,7 @@ const getUserWords = onCall(
         } else {
           throw new Error("Invalid date format")
         }
-      } catch (error) {
+      } catch {
         throw new Error("invalid-argument", `Invalid lastSeenAt timestamp: ${data.lastSeenAt}`)
       }
     }
@@ -94,4 +95,4 @@ const getUserWords = onCall(
   }
 )
 
-module.exports = getUserWords
+export default getUserWords
