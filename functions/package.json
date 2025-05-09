@@ -4,16 +4,16 @@
   "description": "Cloud Functions for Firebase",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
-    "serve:dev": "NODE_ENV=development firebase emulators:start --only functions --project=dev",
-    "serve:prod": "NODE_ENV=production firebase emulators:start --only functions --project=prod",
+    "serve:dev": "cross-env NODE_ENV=development firebase emulators:start --only functions --project=eloquent-sj",
+    "serve:prod": "cross-env NODE_ENV=production firebase emulators:start --only functions --project=eloquent-prod",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "deploy:dev": "NODE_ENV=development firebase deploy --only functions --project=dev",
-    "deploy:prod": "NODE_ENV=production firebase deploy --only functions --project=prod",
+    "deploy:dev": "cross-env NODE_ENV=development firebase deploy --only functions --project=eloquent-sj",
+    "deploy:prod": "cross-env NODE_ENV=production firebase deploy --only functions --project=eloquent-prod",
     "logs": "firebase functions:log",
-    "logs:dev": "firebase functions:log --project=dev",
-    "logs:prod": "firebase functions:log --project=prod"
+    "logs:dev": "firebase functions:log --project=eloquent-sj",
+    "logs:prod": "firebase functions:log --project=eloquent-prod"
   },
   "engines": {
     "node": "18"
@@ -24,6 +24,7 @@
     "firebase-functions": "^6.3.2"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "firebase-functions-test": "^3.4.0"
   },
   "private": true
