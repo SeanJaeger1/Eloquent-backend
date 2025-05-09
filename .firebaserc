@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "eloquent-sj"
+    "default": "eloquent-sj",
+    "dev": "eloquent-sj",
+    "prod": "eloquent-sj-prod"
   }
 }
