@@ -1,6 +1,6 @@
 import admin from "firebase-admin"
-import serviceAccountDev from "../../serviceAccountKey.dev.json" assert { type: "json" }
-import serviceAccountProd from "../../serviceAccountKey.prod.json" assert { type: "json" }
+import serviceAccountDev from "../serviceAccountKey.dev.json"
+import serviceAccountProd from "../serviceAccountKey.prod.json"
 
 // Determine environment
 const environment = process.env.NODE_ENV === "production" ? "production" : "development"
