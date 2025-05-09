@@ -1,19 +1,17 @@
 import admin from "firebase-admin"
-import { createRequire } from "module"
-const require = createRequire(import.meta.url)
+import serviceAccountDev from "../../serviceAccountKey.dev.json" assert { type: "json" }
+import serviceAccountProd from "../../serviceAccountKey.prod.json" assert { type: "json" }
 
 // Determine environment
 const environment = process.env.NODE_ENV === "production" ? "production" : "development"
-const keyEnv = process.env.NODE_ENV === "production" ? "prod" : "dev"
+const serviceAccount = environment === "production" ? serviceAccountProd : serviceAccountDev
 
 // Initialize Firebase Admin
 let db
 
 try {
-  // Try to load service account if available
   try {
-    console.info(`Loading service account for environment: ${keyEnv}`)
-    const serviceAccount = require(`../../serviceAccountKey.${keyEnv}.json`)
+    console.info(`Loading service account for environment: ${environment}`)
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     })
@@ -21,9 +19,7 @@ try {
     console.warn(
       `Service account key not found. Using default credentials or emulator: ${error.message}`
     )
-
-    // If running in development mode without service account keys, initialize without credentials
-    // This will use emulator if available
+    // Fallback to default initialization (uses emulator if available)
     admin.initializeApp()
   }
 
